@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../login_screen.dart'; // Importa la pantalla de login para poder cerrar sesión
+import 'package:healthylife/screens/login_screen.dart'; // Importa la pantalla de login para poder cerrar sesión
 
 class ProfileTab extends StatelessWidget {
-  const ProfileTab({Key? key}) : super(key: key);
+  const ProfileTab({super.key});
 
   @override
   Widget build(BuildContext context) {

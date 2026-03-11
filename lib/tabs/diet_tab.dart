@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class DietTab extends StatelessWidget {
-  const DietTab({Key? key}) : super(key: key);
+  const DietTab({super.key});
 
   @override
   Widget build(BuildContext context) {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class ExerciseTab extends StatelessWidget {
-  const ExerciseTab({Key? key}) : super(key: key);
+  const ExerciseTab({super.key});
 
   @override
   Widget build(BuildContext context) {

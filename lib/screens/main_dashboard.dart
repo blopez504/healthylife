@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'tabs/home_tab.dart';
-import 'tabs/diet_tab.dart';
-import 'tabs/exercise_tab.dart';
-import 'tabs/profile_tab.dart';
+import 'package:healthylife/tabs/diet_tab.dart';
+import 'package:healthylife/tabs/exercise_tab.dart';
+import 'package:healthylife/tabs/home_tab.dart';
+import 'package:healthylife/tabs/profile_tab.dart';
+
 
 class MainDashboard extends StatefulWidget {
-  const MainDashboard({Key? key}) : super(key: key);
+  const MainDashboard({super.key});
 
   @override
   State<MainDashboard> createState() => _MainDashboardState();
