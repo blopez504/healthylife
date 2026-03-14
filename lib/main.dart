@@ -1,7 +1,19 @@
 import 'package:flutter/material.dart';
-import 'screens/login_screen.dart';
+import 'package:firebase_core/firebase_core.dart'; // Importación de Firebase
+import 'firebase_options.dart'; // Archivo generado por FlutterFire
+import 'screens/login_screen.dart'; // Importación de tu pantalla de login
 
-void main() {
+// Convertimos el main a 'async' porque la inicialización de Firebase toma un momento
+void main() async {
+  // 1. Asegurarnos de que los widgets de Flutter estén listos antes de arrancar Firebase
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // 2. Inicializar Firebase con las opciones de tu proyecto
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // 3. Arrancar la aplicación
   runApp(const HealthyLifeApp());
 }
 
@@ -29,6 +41,7 @@ class HealthyLifeApp extends StatelessWidget {
           iconTheme: IconThemeData(color: Colors.white),
         ),
       ),
+      // La primera pantalla que verá el usuario es el Login
       home: const LoginScreen(),
     );
   }
