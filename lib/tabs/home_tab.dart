@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class HomeTab extends StatefulWidget {
   const HomeTab({super.key});
@@ -8,14 +9,20 @@ class HomeTab extends StatefulWidget {
 }
 
 class _HomeTabState extends State<HomeTab> {
-  int _waterGlasses = 3;
+  int _waterGlasses = 0;
+  
+  // Obtener correo del usuario actual
+  final String? _userEmail = FirebaseAuth.instance.currentUser?.email;
 
   @override
   Widget build(BuildContext context) {
+    // Tomamos la parte antes del @ del correo para usarla como "Nombre"
+    String userName = _userEmail != null ? _userEmail.split('@')[0] : 'Usuario';
+
     return ListView(
       padding: const EdgeInsets.all(16.0),
       children: [
-        const Text('Hola, Usuario 👋', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+        Text('Hola, $userName 👋', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
         const Text('Aquí está tu progreso de hoy:', style: TextStyle(fontSize: 16, color: Colors.grey)),
         const SizedBox(height: 24),
         
