@@ -1,17 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'main_dashboard.dart';
+import 'login_screen.dart'; // Importamos el login para regresar al usuario allí
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  const RegisterScreen({Key? key}) : super(key: key);
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
-  // Controladores para capturar lo que el usuario escribe
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _ageController = TextEditingController();
@@ -20,11 +19,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   String _selectedGoal = 'Perder peso';
   String _selectedLevel = 'Principiante';
-  bool _isLoading = false; // Para mostrar ruedita de carga
+  bool _isLoading = false;
 
-  // Función mágica para registrar en Firebase
   Future<void> _registerUser() async {
-    // 1. Validar que no haya campos vacíos
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty || _ageController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, llena todos los campos')));
       return;
@@ -33,13 +30,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // 2. Crear usuario en Firebase Authentication (El acceso)
+      // 1. Crear usuario en Firebase
       UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // 3. Guardar el perfil de salud en Firestore Database (Los datos)
+      // 2. ENVIAR CORREO DE VERIFICACIÓN
+      await userCredential.user!.sendEmailVerification();
+
+      // 3. Guardar datos en Firestore
       await FirebaseFirestore.instance.collection('users').doc(userCredential.user!.uid).set({
         'email': _emailController.text.trim(),
         'edad': int.tryParse(_ageController.text) ?? 0,
@@ -50,16 +50,31 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'fecha_registro': FieldValue.serverTimestamp(),
       });
 
-      // 4. Si todo sale bien, ir al Dashboard
+      // 4. Mostrar aviso y regresar al Login
       if (mounted) {
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const MainDashboard()),
-          (route) => false,
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: const Text('¡Registro Exitoso!'),
+            content: Text('Hemos enviado un enlace de confirmación a ${_emailController.text}. Por favor, revisa tu bandeja de entrada o spam para verificar tu cuenta antes de iniciar sesión.'),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  // Cierra el diálogo y lo manda al login
+                  Navigator.pushAndRemoveUntil(
+                    context,
+                    MaterialPageRoute(builder: (context) => const LoginScreen()),
+                    (route) => false,
+                  );
+                },
+                child: const Text('Entendido', style: TextStyle(color: Color(0xFF2E7D32))),
+              )
+            ],
+          ),
         );
       }
     } on FirebaseAuthException catch (e) {
-      // Si hay error (ej. correo ya existe)
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -78,11 +93,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const Text('Crea tu cuenta', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             
-            // --- NUEVO: Correo y Contraseña ---
             TextField(
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
-              decoration: InputDecoration(labelText: 'Correo Electrónico', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
+              decoration: InputDecoration(labelText: 'Correo Electrónico Real', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
             const SizedBox(height: 16),
             TextField(
@@ -109,7 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const Text('Objetivo Principal', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: _selectedGoal,
+              value: _selectedGoal,
               decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
               items: ['Perder peso', 'Mantenerse', 'Ganar masa muscular'].map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
               onChanged: (newValue) => setState(() => _selectedGoal = newValue!),
@@ -119,16 +133,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const Text('Nivel Físico', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              initialValue: _selectedLevel,
+              value: _selectedLevel,
               decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
               items: ['Principiante', 'Intermedio', 'Avanzado'].map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
               onChanged: (newValue) => setState(() => _selectedLevel = newValue!),
             ),
             const SizedBox(height: 32),
             
-            // Botón de Registrar
             ElevatedButton(
-              onPressed: _isLoading ? null : _registerUser, // Si está cargando, se bloquea
+              onPressed: _isLoading ? null : _registerUser,
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -136,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
               ),
               child: _isLoading 
                   ? const CircularProgressIndicator(color: Colors.white) 
-                  : const Text('Registrarse y Comenzar', style: TextStyle(fontSize: 18, color: Colors.white)),
+                  : const Text('Registrarse', style: TextStyle(fontSize: 18, color: Colors.white)),
             ),
           ],
         ),

@@ -4,7 +4,7 @@ import 'main_dashboard.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({Key? key}) : super(key: key);
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -15,6 +15,43 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
 
+  // --- NUEVA FUNCIÓN: RECUPERAR CONTRASEÑA ---
+  Future<void> _resetPassword() async {
+    // Verificamos que al menos haya escrito su correo
+    if (_emailController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Por favor, ingresa tu correo en el campo de arriba para enviar el enlace.')),
+      );
+      return;
+    }
+
+    try {
+      // Firebase envía el correo de recuperación
+      await FirebaseAuth.instance.sendPasswordResetEmail(
+        email: _emailController.text.trim(),
+      );
+      
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Enlace enviado', style: TextStyle(color: Color(0xFF2E7D32))),
+            content: Text('Hemos enviado un enlace a ${_emailController.text} para que cambies tu contraseña. Revisa también tu carpeta de Spam.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Entendido'),
+              )
+            ],
+          ),
+        );
+      }
+    } on FirebaseAuthException catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
+    }
+  }
+
+  // --- FUNCIÓN DE LOGIN (Ya la teníamos) ---
   Future<void> _loginReal() async {
     if (_emailController.text.isEmpty || _passwordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Ingresa correo y contraseña')));
@@ -24,13 +61,32 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Intentar iniciar sesión en Firebase
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+      UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
-      // Si tiene éxito, vamos al menú principal
+      // VERIFICAR SI EL CORREO ESTÁ CONFIRMADO
+      if (!userCredential.user!.emailVerified) {
+        await FirebaseAuth.instance.signOut();
+        if (mounted) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Correo no verificado', style: TextStyle(color: Colors.red)),
+              content: const Text('Por favor revisa tu correo electrónico y haz clic en el enlace de verificación antes de iniciar sesión. Revisa también la carpeta de Spam.'),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Entendido'),
+                )
+              ],
+            ),
+          );
+        }
+        return; 
+      }
+
       if (mounted) {
         Navigator.pushReplacement(
           context,
@@ -38,7 +94,6 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on FirebaseAuthException catch (e) {
-      // Si la contraseña está mal o el usuario no existe
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: ${e.message}')));
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -72,12 +127,22 @@ class _LoginScreenState extends State<LoginScreen> {
                   decoration: InputDecoration(labelText: 'Correo Electrónico', prefixIcon: const Icon(Icons.email_outlined), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                 ),
                 const SizedBox(height: 16),
+                
                 TextField(
                   controller: _passwordController,
                   obscureText: true,
                   decoration: InputDecoration(labelText: 'Contraseña', prefixIcon: const Icon(Icons.lock_outline), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
                 ),
-                const SizedBox(height: 24),
+                
+                // --- NUEVO: Botón de Olvidaste tu contraseña ---
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: _resetPassword,
+                    child: const Text('¿Olvidaste tu contraseña?', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 16),
                 
                 ElevatedButton(
                   onPressed: _isLoading ? null : _loginReal,
