@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'login_screen.dart'; // Importamos el login para regresar al usuario allí
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key}) : super(key: key);
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -123,7 +123,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const Text('Objetivo Principal', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _selectedGoal,
+              initialValue: _selectedGoal,
               decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
               items: ['Perder peso', 'Mantenerse', 'Ganar masa muscular'].map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
               onChanged: (newValue) => setState(() => _selectedGoal = newValue!),
@@ -133,7 +133,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             const Text('Nivel Físico', style: TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-              value: _selectedLevel,
+              initialValue: _selectedLevel,
               decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
               items: ['Principiante', 'Intermedio', 'Avanzado'].map((String value) => DropdownMenuItem<String>(value: value, child: Text(value))).toList(),
               onChanged: (newValue) => setState(() => _selectedLevel = newValue!),
