@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ExerciseTab extends StatelessWidget {
-  const ExerciseTab({Key? key}) : super(key: key);
+  const ExerciseTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -122,7 +122,7 @@ class ExerciseTab extends StatelessWidget {
                 ),
                 trailing: const Icon(Icons.check_circle_outline, color: Colors.grey),
               ),
-            )).toList()
+            ))
           ],
         );
       },

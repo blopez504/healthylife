@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DietTab extends StatelessWidget {
-  const DietTab({Key? key}) : super(key: key);
+  const DietTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -114,7 +114,7 @@ class DietTab extends StatelessWidget {
                   child: Text(item['desc']!, style: const TextStyle(fontSize: 14, color: Colors.black87)),
                 ),
               ),
-            )).toList() // Convertimos el map de vuelta a una lista para que Flutter lo dibuje
+            )) // Convertimos el map de vuelta a una lista para que Flutter lo dibuje
           ],
         );
       },

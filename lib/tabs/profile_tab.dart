@@ -5,7 +5,7 @@ import 'package:healthylife/screens/login_screen.dart';
  
 
 class ProfileTab extends StatelessWidget {
-  const ProfileTab({Key? key}) : super(key: key);
+  const ProfileTab({super.key});
 
   // FUNCIÓN NUEVA: Cerrar Sesión
   Future<void> _cerrarSesion(BuildContext context) async {
