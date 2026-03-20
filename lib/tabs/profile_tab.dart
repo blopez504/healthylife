@@ -2,111 +2,154 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:healthylife/screens/login_screen.dart';
+ 
 
-class ProfileTab extends StatefulWidget {
-  const ProfileTab({super.key});
+class ProfileTab extends StatelessWidget {
+  const ProfileTab({Key? key}) : super(key: key);
 
-  @override
-  State<ProfileTab> createState() => _ProfileTabState();
-}
+  // FUNCIÓN NUEVA: Cerrar Sesión
+  Future<void> _cerrarSesion(BuildContext context) async {
+    // Le preguntamos al usuario si está seguro
+    bool? confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cerrar Sesión'),
+        content: const Text('¿Estás seguro de que quieres salir de tu cuenta?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false), // No salir
+            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true), // Sí salir
+            child: const Text('Sí, salir', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
 
-class _ProfileTabState extends State<ProfileTab> {
-  // Obtener el usuario actual
-  final User? user = FirebaseAuth.instance.currentUser;
-
-  Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
-    if (mounted) {
-      Navigator.pushAndRemoveUntil(
-        context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
-        (route) => false,
-      );
+    // Si dijo que sí, cerramos sesión y lo mandamos al Login
+    if (confirmar == true) {
+      await FirebaseAuth.instance.signOut();
+      if (context.mounted) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
+          (route) => false, // Borra el historial para que no pueda volver atrás con la flecha
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Si no hay usuario logueado por alguna razón
-    if (user == null) {
-      return const Center(child: Text("No hay sesión iniciada"));
-    }
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) return const Center(child: Text("No hay sesión"));
 
     return FutureBuilder<DocumentSnapshot>(
-      // Buscar el documento del usuario en Firestore
-      future: FirebaseFirestore.instance.collection('users').doc(user!.uid).get(),
+      future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
-        // Mientras carga los datos de internet
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
         }
-        // Si hay un error
-        if (snapshot.hasError) {
-          return const Center(child: Text('Error al cargar perfil'));
+        if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: Text('Error al cargar perfil.'));
         }
 
-        // Si cargó exitosamente, extraer los datos
-        var userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-        
-        String email = userData['email'] ?? user!.email ?? 'Sin correo';
-        String objetivo = userData['objetivo'] ?? 'Sin objetivo';
-        String nivel = userData['nivel'] ?? 'Sin nivel';
-        double peso = (userData['peso'] ?? 0).toDouble();
-        double altura = (userData['altura'] ?? 0).toDouble();
+        var userData = snapshot.data!.data() as Map<String, dynamic>;
 
-        return ListView(
-          padding: const EdgeInsets.all(16.0),
-          children: [
-            const SizedBox(height: 20),
-            const Center(
-              child: CircleAvatar(
-                radius: 55,
-                backgroundColor: Color(0xFF2E7D32),
-                child: Icon(Icons.person, size: 60, color: Colors.white),
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Avatar
+              CircleAvatar(
+                radius: 50,
+                backgroundColor: Colors.green.shade100,
+                child: const Icon(Icons.person, size: 60, color: Color(0xFF2E7D32)),
               ),
-            ),
-            const SizedBox(height: 16),
-            Center(child: Text(email.split('@')[0].toUpperCase(), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold))),
-            Center(child: Text(email, style: const TextStyle(fontSize: 14, color: Colors.grey))),
-            const SizedBox(height: 12),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(20)),
-                child: Text('Objetivo: $objetivo', style: const TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              
+              // Correo
+              Text(userData['email'] ?? 'Sin correo', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              
+              // Chips de Objetivo y Nivel
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Chip(
+                    label: Text(userData['objetivo'] ?? 'Mantenerse', style: const TextStyle(color: Colors.white)),
+                    backgroundColor: const Color(0xFF2E7D32),
+                  ),
+                  const SizedBox(width: 8),
+                  Chip(
+                    label: Text(userData['nivel'] ?? 'Principiante', style: const TextStyle(color: Colors.white)),
+                    backgroundColor: const Color(0xFF1976D2),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 20),
-            
-            // Fila con Peso y Altura Reales
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildInfoStat('Peso', '$peso kg'),
-                _buildInfoStat('Altura', '$altura cm'),
-                _buildInfoStat('Nivel', nivel),
-              ],
-            ),
-            const SizedBox(height: 32),
-            const Divider(),
-            
-            ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-              onTap: _signOut,
-            ),
-          ],
+              const Divider(height: 48, thickness: 1),
+
+              // Datos Físicos
+              const Align(alignment: Alignment.centerLeft, child: Text('Tus Datos Físicos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+              const SizedBox(height: 16),
+              
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    children: [
+                      _buildProfileRow(Icons.cake, 'Edad', '${userData['edad'] ?? '--'} años'),
+                      const Divider(),
+                      _buildProfileRow(Icons.monitor_weight, 'Peso', '${userData['peso'] ?? '--'} kg'),
+                      const Divider(),
+                      _buildProfileRow(Icons.height, 'Altura', '${userData['altura'] ?? '--'} cm'),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 40),
+
+              // --- BOTÓN DE CERRAR SESIÓN ---
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _cerrarSesion(context),
+                  icon: const Icon(Icons.logout, color: Colors.red),
+                  label: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Colors.red),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 
-  Widget _buildInfoStat(String title, String value) {
-    return Column(
+  // Fila reutilizable para los datos físicos
+  Widget _buildProfileRow(IconData icon, String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(value, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
-        const SizedBox(height: 4),
-        Text(title, style: const TextStyle(color: Colors.grey)),
+        Row(
+          children: [
+            Icon(icon, color: Colors.grey.shade600, size: 24),
+            const SizedBox(width: 12),
+            Text(label, style: TextStyle(fontSize: 16, color: Colors.grey.shade800)),
+          ],
+        ),
+        Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
       ],
     );
   }
