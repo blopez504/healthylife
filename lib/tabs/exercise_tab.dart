@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ExerciseTab extends StatefulWidget {
-  const ExerciseTab({Key? key}) : super(key: key);
+  const ExerciseTab({super.key});
 
   @override
   State<ExerciseTab> createState() => _ExerciseTabState();

@@ -4,7 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:healthylife/screens/login_screen.dart';
 
 class ProfileTab extends StatelessWidget {
-  const ProfileTab({Key? key}) : super(key: key);
+  const ProfileTab({super.key});
 
   // --- NUEVA FUNCIÓN: ACTUALIZAR DATOS EN FIREBASE ---
   Future<void> _editarDatosFisicos(BuildContext context, Map<String, dynamic> userData) async {
