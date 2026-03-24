@@ -1,109 +1,182 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
-class HomeTab extends StatefulWidget {
-  const HomeTab({super.key});
-
-  @override
-  State<HomeTab> createState() => _HomeTabState();
-}
-
-class _HomeTabState extends State<HomeTab> {
-  int _waterGlasses = 0;
-  
-  // Obtener correo del usuario actual
-  final String? _userEmail = FirebaseAuth.instance.currentUser?.email;
+class HomeTab extends StatelessWidget {
+  const HomeTab({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    // Tomamos la parte antes del @ del correo para usarla como "Nombre"
-    String userName = _userEmail != null ? _userEmail.split('@')[0] : 'Usuario';
+    final user = FirebaseAuth.instance.currentUser;
 
-    return ListView(
-      padding: const EdgeInsets.all(16.0),
-      children: [
-        Text('Hola, $userName 👋', style: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-        const Text('Aquí está tu progreso de hoy:', style: TextStyle(fontSize: 16, color: Colors.grey)),
-        const SizedBox(height: 24),
+    if (user == null) {
+      return const Center(child: Text("No hay sesión iniciada"));
+    }
+
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
+        }
         
-        // Tarjeta Calorías
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: const [
-                      Text('Calorías Consumidas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      SizedBox(height: 8),
-                      Text('1,250 / 2,000 kcal', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.orange)),
-                    ],
-                  ),
-                ),
-                Stack(
-                  alignment: Alignment.center,
-                  children: const [
-                    SizedBox(
-                      width: 60, height: 60,
-                      child: CircularProgressIndicator(value: 1250/2000, color: Colors.orange, backgroundColor: Color(0xFFFFF3E0), strokeWidth: 8),
+        if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
+          return const Center(child: Text('Error al cargar tu resumen.'));
+        }
+
+        var userData = snapshot.data!.data() as Map<String, dynamic>;
+        
+        // 1. Extraemos los datos
+        // Asumimos que el usuario ingresó el peso en LIBRAS (ej: 110)
+        double pesoLibras = (userData['peso'] ?? 0).toDouble(); 
+        double alturaCm = (userData['altura'] ?? 0).toDouble();
+        String nombre = userData['email']?.split('@')[0] ?? 'Usuario'; 
+        
+        // Variables del IMC
+        double imc = 0;
+        String estadoImc = "Calculando...";
+        Color colorImc = Colors.grey;
+        String consejo = "";
+        IconData iconoEstado = Icons.help_outline;
+
+        // 2. FÓRMULA DEL IMC
+        if (pesoLibras > 0 && alturaCm > 0) {
+          // --- CONVERSIÓN CRUCIAL ---
+          // Pasamos las libras a kilos (1 kilo = 2.20462 libras)
+          double pesoKilos = pesoLibras / 2.20462; 
+          
+          // Detección de metros/centímetros (por si acso)
+          double alturaMts = alturaCm;
+          if (alturaCm > 3.0) {
+            alturaMts = alturaCm / 100; // Pasamos cm a metros
+          }
+          
+          // Calculamos el IMC usando los Kilos y los Metros
+          imc = pesoKilos / (alturaMts * alturaMts);
+          
+          // Lógica de colores (OMS)
+          if (imc < 18.5) {
+            estadoImc = "Bajo Peso";
+            colorImc = Colors.blue;
+            iconoEstado = Icons.arrow_downward;
+            consejo = "Te recomendamos un superávit calórico para ganar masa muscular.";
+          } else if (imc >= 18.5 && imc < 24.9) {
+            estadoImc = "Peso Saludable";
+            colorImc = Colors.green;
+            iconoEstado = Icons.check_circle;
+            consejo = "¡Excelente trabajo! Mantén tus hábitos saludables actuales.";
+          } else if (imc >= 25 && imc < 29.9) {
+            estadoImc = "Sobrepeso";
+            colorImc = Colors.orange;
+            iconoEstado = Icons.warning_amber_rounded;
+            consejo = "Un ligero déficit calórico y ejercicio regular te ayudarán.";
+          } else {
+            estadoImc = "Obesidad";
+            colorImc = Colors.red;
+            iconoEstado = Icons.report_problem;
+            consejo = "Prioriza ejercicios de cardio y consulta tu dieta personalizada.";
+          }
+        }
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(20.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('¡Hola, $nombre!', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+              const Text('Aquí tienes tu resumen de salud de hoy.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+              const SizedBox(height: 24),
+
+              // TARJETA DE IMC
+              const Text('Tu Índice de Masa Corporal (IMC)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 12),
+              
+              Card(
+                elevation: 4,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(20),
+                    gradient: LinearGradient(
+                      colors: [colorImc.withOpacity(0.8), colorImc],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    Icon(Icons.local_fire_department, color: Colors.orange),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        // Tarjeta Agua
-        Card(
-          elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          child: Padding(
-            padding: const EdgeInsets.all(20.0),
-            child: Row(
-              children: [
-                Expanded(
+                  ),
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Consumo de Agua', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
-                      Text('$_waterGlasses / 8 vasos', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.blue)),
+                      Icon(iconoEstado, color: Colors.white, size: 48),
+                      const SizedBox(height: 12),
+                      Text(
+                        imc > 0 ? imc.toStringAsFixed(1) : '--', 
+                        style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      Text(
+                        estadoImc.toUpperCase(),
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white, letterSpacing: 1.5),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          consejo,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      )
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.add_circle, color: Colors.blue, size: 45),
-                  onPressed: () {
-                    if (_waterGlasses < 8) {
-                      setState(() => _waterGlasses++);
-                    }
-                  },
-                )
-              ],
-            ),
+              ),
+
+              const SizedBox(height: 32),
+
+              Row(
+                children: [
+                  Expanded(child: _buildMiniCard('Objetivo', userData['objetivo'] ?? '--', Icons.flag, Colors.blue)),
+                  const SizedBox(width: 16),
+                  Expanded(child: _buildMiniCard('Nivel', userData['nivel'] ?? '--', Icons.fitness_center, Colors.orange)),
+                ],
+              ),
+              
+              const SizedBox(height: 16),
+              
+              // Pequeño recordatorio de peso
+              Center(
+                child: Text(
+                  'Peso registrado: $pesoLibras lbs', 
+                  style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                ),
+              )
+            ],
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniCard(String title, String value, IconData icon, Color color) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 32),
+            const SizedBox(height: 8),
+            Text(title, style: const TextStyle(fontSize: 14, color: Colors.grey)),
+            const SizedBox(height: 4),
+            Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
+          ],
         ),
-        const SizedBox(height: 24),
-        
-        // Actividades Completadas
-        const Text('Actividad de hoy', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        const SizedBox(height: 10),
-        ListTile(
-          tileColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          leading: const Icon(Icons.directions_run, color: Colors.green),
-          title: const Text('Caminata Matutina'),
-          subtitle: const Text('Completado • 30 min'),
-          trailing: const Icon(Icons.check_circle, color: Colors.green),
-        )
-      ],
+      ),
     );
   }
 }
