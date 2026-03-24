@@ -2,42 +2,43 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class ExerciseTab extends StatelessWidget {
-  const ExerciseTab({super.key});
+class ExerciseTab extends StatefulWidget {
+  const ExerciseTab({Key? key}) : super(key: key);
+
+  @override
+  State<ExerciseTab> createState() => _ExerciseTabState();
+}
+
+class _ExerciseTabState extends State<ExerciseTab> {
+  // --- NUEVO: LISTA PARA LLEVAR EL CONTROL DE LAS CASILLAS MARCADAS ---
+  // Guardamos si la tarea 0, 1, 2 o 3 está completada
+  final List<bool> _tareasCompletadas = [false, false, false, false];
 
   @override
   Widget build(BuildContext context) {
-    // 1. Obtenemos al usuario que inició sesión
     final user = FirebaseAuth.instance.currentUser;
 
-    if (user == null) {
-      return const Center(child: Text("No hay sesión iniciada"));
-    }
+    if (user == null) return const Center(child: Text("No hay sesión iniciada"));
 
     return FutureBuilder<DocumentSnapshot>(
-      // 2. Buscamos los datos del usuario en Firebase
       future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
-        
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
         }
-        
         if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
           return const Center(child: Text('Error al cargar tu rutina.'));
         }
 
-        // 3. Extraemos el objetivo y el nivel del usuario
         var userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
         String objetivo = userData['objetivo'] ?? 'Mantenerse';
         String nivel = userData['nivel'] ?? 'Principiante';
 
-        // Variables para la rutina
         String tituloRutina = "";
         String enfoque = "";
         List<Map<String, String>> rutina = [];
 
-        // 4. LÓGICA INTELIGENTE: Asignamos la rutina según objetivo y nivel
+        // LÓGICA INTELIGENTE (La que ya teníamos)
         if (objetivo == 'Perder peso') {
           tituloRutina = "Quema de Grasa (Cardio/HIIT)";
           enfoque = "Ejercicios de alta intensidad para acelerar el metabolismo. Nivel: $nivel.";
@@ -67,19 +68,20 @@ class ExerciseTab extends StatelessWidget {
           ];
         }
 
-        // 5. Construimos la interfaz visual
+        // Calculamos el progreso visual (cuántas están marcadas)
+        int marcadas = _tareasCompletadas.where((element) => element == true).length;
+        double progreso = marcadas / rutina.length;
+
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // Tarjeta principal con el título
+            // --- TARJETA PRINCIPAL CON BARRA DE PROGRESO ---
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: const Color(0xFF1976D2), // Color azul para diferenciarlo de la dieta (verde)
+                color: const Color(0xFF1976D2),
                 borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))
-                ]
+                boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,6 +97,24 @@ class ExerciseTab extends StatelessWidget {
                   Text(tituloRutina, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   Text(enfoque, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                  
+                  // La nueva barra de progreso visual
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Progreso de Hoy:', style: const TextStyle(color: Colors.white70)),
+                      Text('$marcadas/${rutina.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: progreso,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    color: Colors.greenAccent,
+                    minHeight: 8,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
                 ],
               ),
             ),
@@ -103,26 +123,66 @@ class ExerciseTab extends StatelessWidget {
             const Text('Ejercicios de Hoy', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             
-            // Generamos las tarjetas de ejercicios
-            ...rutina.map((item) => Card(
-              margin: const EdgeInsets.only(bottom: 12),
-              elevation: 2,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              child: ListTile(
-                contentPadding: const EdgeInsets.all(16),
-                leading: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
-                  child: const Icon(Icons.directions_run, color: Color(0xFF1976D2)),
+            // --- NUEVO: LISTA CON CHECKBOX INTERACTIVOS ---
+            // Usamos un bucle for tradicional en lugar de .map para saber el "índice" de cada ejercicio
+            for (int i = 0; i < rutina.length; i++)
+              Card(
+                margin: const EdgeInsets.only(bottom: 12),
+                elevation: 2,
+                // Si la tarea está completada, ponemos el fondo verdecito claro
+                color: _tareasCompletadas[i] ? Colors.green.shade50 : Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                    color: _tareasCompletadas[i] ? Colors.green : Colors.transparent,
+                    width: 1
+                  )
                 ),
-                title: Text(item['ejercicio']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 6.0),
-                  child: Text(item['series']!, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+                child: CheckboxListTile(
+                  contentPadding: const EdgeInsets.all(12),
+                  activeColor: const Color(0xFF2E7D32),
+                  title: Text(
+                    rutina[i]['ejercicio']!, 
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold, 
+                      fontSize: 16,
+                      // Tachamos el texto si ya lo completó
+                      decoration: _tareasCompletadas[i] ? TextDecoration.lineThrough : TextDecoration.none,
+                      color: _tareasCompletadas[i] ? Colors.grey : Colors.black,
+                    )
+                  ),
+                  subtitle: Padding(
+                    padding: const EdgeInsets.only(top: 6.0),
+                    child: Text(rutina[i]['series']!, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+                  ),
+                  value: _tareasCompletadas[i],
+                  onChanged: (bool? newValue) {
+                    // Refrescamos la pantalla cuando marca la casilla
+                    setState(() {
+                      _tareasCompletadas[i] = newValue!;
+                    });
+                  },
                 ),
-                trailing: const Icon(Icons.check_circle_outline, color: Colors.grey),
               ),
-            ))
+              
+              // Si completó todos, mostramos un mensaje de felicitaciones
+              if (progreso == 1.0)
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  margin: const EdgeInsets.only(top: 16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.emoji_events, color: Colors.orange, size: 32),
+                      SizedBox(width: 12),
+                      Text('¡Felicidades! Terminaste por hoy.', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold, fontSize: 16)),
+                    ],
+                  ),
+                )
           ],
         );
       },
