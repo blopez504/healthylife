@@ -2,78 +2,54 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:healthylife/screens/login_screen.dart';
+import '../../widgets/pulse_loader.dart';
 
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
-  // --- NUEVA FUNCIÓN: ACTUALIZAR DATOS EN FIREBASE ---
   Future<void> _editarDatosFisicos(BuildContext context, Map<String, dynamic> userData) async {
-    // Controladores con los datos actuales ya escritos en la caja
     final pesoController = TextEditingController(text: userData['peso'].toString());
     final alturaController = TextEditingController(text: userData['altura'].toString());
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) return;
 
-    // Mostramos una ventana flotante (Dialog)
     await showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Actualizar Medidas', style: TextStyle(color: Color(0xFF2E7D32))),
         content: Column(
-          mainAxisSize: MainAxisSize.min, // Para que no ocupe toda la pantalla
+          mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: pesoController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Nuevo Peso (lbs)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              decoration: InputDecoration(labelText: 'Nuevo Peso (lbs)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
             const SizedBox(height: 16),
             TextField(
               controller: alturaController,
               keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                labelText: 'Nueva Altura (cm)',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
+              decoration: InputDecoration(labelText: 'Nueva Altura (cm)', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12))),
             ),
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context), 
-            child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar', style: TextStyle(color: Colors.grey))),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             onPressed: () async {
-              // 1. Agarramos los nuevos números que escribió el usuario
               double nuevoPeso = double.tryParse(pesoController.text) ?? userData['peso'];
               double nuevaAltura = double.tryParse(alturaController.text) ?? userData['altura'];
 
-              // 2. ACTUALIZAMOS FIREBASE (Magia aquí)
               try {
-                await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-                  'peso': nuevoPeso,
-                  'altura': nuevaAltura,
-                });
-                
+                await FirebaseFirestore.instance.collection('users').doc(user.uid).update({'peso': nuevoPeso, 'altura': nuevaAltura});
                 if (context.mounted) {
-                  Navigator.pop(context); // Cerramos la ventana
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('¡Datos actualizados con éxito!'), backgroundColor: Colors.green),
-                  );
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('¡Datos actualizados con éxito!'), backgroundColor: Colors.green));
                 }
               } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                }
+                if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
               }
             },
             child: const Text('Guardar', style: TextStyle(color: Colors.white)),
@@ -83,7 +59,6 @@ class ProfileTab extends StatelessWidget {
     );
   }
 
-  // --- FUNCIÓN DE CERRAR SESIÓN (Ya la tenías) ---
   Future<void> _cerrarSesion(BuildContext context) async {
     bool? confirmar = await showDialog<bool>(
       context: context,
@@ -114,9 +89,16 @@ class ProfileTab extends StatelessWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
+        
+        // --- ANIMACIÓN DE CARGA AQUÍ ---
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
+          return const PulseLoader(
+            icon: Icons.person_search, 
+            color: Color(0xFF2E7D32),
+            text: 'Cargando tu perfil...',
+          );
         }
+
         if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
           return const Center(child: Text('Error al cargar perfil.'));
         }
@@ -143,13 +125,12 @@ class ProfileTab extends StatelessWidget {
               ),
               const Divider(height: 48, thickness: 1),
 
-              // --- SECCIÓN DE DATOS FÍSICOS CON BOTÓN DE EDITAR ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   const Text('Tus Datos Físicos', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   TextButton.icon(
-                    onPressed: () => _editarDatosFisicos(context, userData), // Llama a la ventana
+                    onPressed: () => _editarDatosFisicos(context, userData),
                     icon: const Icon(Icons.edit, size: 16),
                     label: const Text('Editar'),
                   )

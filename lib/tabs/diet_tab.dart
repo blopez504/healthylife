@@ -1,47 +1,43 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../widgets/pulse_loader.dart';
 
 class DietTab extends StatelessWidget {
   const DietTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // 1. Obtenemos al usuario que inició sesión
     final user = FirebaseAuth.instance.currentUser;
 
-    // Si por alguna razón no hay usuario, mostramos un mensaje
     if (user == null) {
       return const Center(child: Text("No hay sesión iniciada"));
     }
 
     return FutureBuilder<DocumentSnapshot>(
-      // 2. Buscamos los datos de este usuario específico en la colección 'users' de Firestore
       future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
         
-        // Mientras espera la respuesta de internet
+        // --- ANIMACIÓN DE CARGA AQUÍ ---
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
+          return const PulseLoader(
+            icon: Icons.restaurant, 
+            color: Colors.orange, 
+            text: 'Cocinando tu menú...',
+          );
         }
         
-        // Si hay un error de conexión o no encuentra el documento
         if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
           return const Center(child: Text('Error al cargar tu plan de dieta.'));
         }
 
-        // 3. Extraemos los datos del usuario
         var userData = snapshot.data!.data() as Map<String, dynamic>? ?? {};
-        
-        // Buscamos qué objetivo guardó al registrarse (si no hay, por defecto es 'Mantenerse')
         String objetivo = userData['objetivo'] ?? 'Mantenerse';
 
-        // Variables vacías que llenaremos dependiendo del objetivo
         String tituloDieta = "";
         String descripcion = "";
         List<Map<String, String>> planComidas = [];
 
-        // 4. LÓGICA INTELIGENTE: Asignamos la dieta según su objetivo
         if (objetivo == 'Perder peso') {
           tituloDieta = "Déficit Calórico (Perder Peso)";
           descripcion = "Plan enfocado en consumir menos calorías para quemar grasa conservando energía.";
@@ -59,7 +55,6 @@ class DietTab extends StatelessWidget {
             {"comida": "Cena", "desc": "Pasta integral con carne molida magra y salsa de tomate natural."}
           ];
         } else {
-          // Opción por defecto: Mantenerse
           tituloDieta = "Mantenimiento Saludable";
           descripcion = "Plan balanceado para mantener tu peso actual y mejorar tu salud general.";
           planComidas = [
@@ -69,11 +64,9 @@ class DietTab extends StatelessWidget {
           ];
         }
 
-        // 5. Construimos la interfaz visual de la pestaña
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // Tarjeta principal verde con el título
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -96,7 +89,6 @@ class DietTab extends StatelessWidget {
             const Text('Menú del Día', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             
-            // Generamos las tarjetas de comida usando el ciclo map
             ...planComidas.map((item) => Card(
               margin: const EdgeInsets.only(bottom: 12),
               elevation: 2,
@@ -114,7 +106,7 @@ class DietTab extends StatelessWidget {
                   child: Text(item['desc']!, style: const TextStyle(fontSize: 14, color: Colors.black87)),
                 ),
               ),
-            )) // Convertimos el map de vuelta a una lista para que Flutter lo dibuje
+            ))
           ],
         );
       },

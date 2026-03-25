@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../widgets/pulse_loader.dart';
 
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
@@ -16,8 +17,13 @@ class HomeTab extends StatelessWidget {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
+        // --- ANIMACIÓN DE CARGA AQUÍ ---
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
+          return const PulseLoader(
+            icon: Icons.monitor_heart, 
+            color: Color(0xFF2E7D32),
+            text: 'Calculando tu salud...',
+          );
         }
         
         if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
@@ -26,35 +32,26 @@ class HomeTab extends StatelessWidget {
 
         var userData = snapshot.data!.data() as Map<String, dynamic>;
         
-        // 1. Extraemos los datos
-        // Asumimos que el usuario ingresó el peso en LIBRAS (ej: 110)
         double pesoLibras = (userData['peso'] ?? 0).toDouble(); 
         double alturaCm = (userData['altura'] ?? 0).toDouble();
         String nombre = userData['email']?.split('@')[0] ?? 'Usuario'; 
         
-        // Variables del IMC
         double imc = 0;
         String estadoImc = "Calculando...";
         Color colorImc = Colors.grey;
         String consejo = "";
         IconData iconoEstado = Icons.help_outline;
 
-        // 2. FÓRMULA DEL IMC
         if (pesoLibras > 0 && alturaCm > 0) {
-          // --- CONVERSIÓN CRUCIAL ---
-          // Pasamos las libras a kilos (1 kilo = 2.20462 libras)
           double pesoKilos = pesoLibras / 2.20462; 
           
-          // Detección de metros/centímetros (por si acso)
           double alturaMts = alturaCm;
           if (alturaCm > 3.0) {
-            alturaMts = alturaCm / 100; // Pasamos cm a metros
+            alturaMts = alturaCm / 100;
           }
           
-          // Calculamos el IMC usando los Kilos y los Metros
           imc = pesoKilos / (alturaMts * alturaMts);
           
-          // Lógica de colores (OMS)
           if (imc < 18.5) {
             estadoImc = "Bajo Peso";
             colorImc = Colors.blue;
@@ -87,7 +84,6 @@ class HomeTab extends StatelessWidget {
               const Text('Aquí tienes tu resumen de salud de hoy.', style: TextStyle(fontSize: 16, color: Colors.grey)),
               const SizedBox(height: 24),
 
-              // TARJETA DE IMC
               const Text('Tu Índice de Masa Corporal (IMC)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
               
@@ -146,13 +142,8 @@ class HomeTab extends StatelessWidget {
               ),
               
               const SizedBox(height: 16),
-              
-              // Pequeño recordatorio de peso
               Center(
-                child: Text(
-                  'Peso registrado: $pesoLibras lbs', 
-                  style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
-                ),
+                child: Text('Peso registrado: $pesoLibras lbs', style: const TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
               )
             ],
           ),

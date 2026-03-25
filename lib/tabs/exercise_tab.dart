@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../widgets/pulse_loader.dart';
 
 class ExerciseTab extends StatefulWidget {
   const ExerciseTab({super.key});
@@ -10,8 +11,6 @@ class ExerciseTab extends StatefulWidget {
 }
 
 class _ExerciseTabState extends State<ExerciseTab> {
-  // --- NUEVO: LISTA PARA LLEVAR EL CONTROL DE LAS CASILLAS MARCADAS ---
-  // Guardamos si la tarea 0, 1, 2 o 3 está completada
   final List<bool> _tareasCompletadas = [false, false, false, false];
 
   @override
@@ -23,9 +22,16 @@ class _ExerciseTabState extends State<ExerciseTab> {
     return FutureBuilder<DocumentSnapshot>(
       future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
+        
+        // --- ANIMACIÓN DE CARGA AQUÍ ---
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32)));
+          return const PulseLoader(
+            icon: Icons.fitness_center, 
+            color: Color(0xFF1976D2),
+            text: 'Preparando tu rutina...',
+          );
         }
+
         if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
           return const Center(child: Text('Error al cargar tu rutina.'));
         }
@@ -38,7 +44,6 @@ class _ExerciseTabState extends State<ExerciseTab> {
         String enfoque = "";
         List<Map<String, String>> rutina = [];
 
-        // LÓGICA INTELIGENTE (La que ya teníamos)
         if (objetivo == 'Perder peso') {
           tituloRutina = "Quema de Grasa (Cardio/HIIT)";
           enfoque = "Ejercicios de alta intensidad para acelerar el metabolismo. Nivel: $nivel.";
@@ -68,14 +73,12 @@ class _ExerciseTabState extends State<ExerciseTab> {
           ];
         }
 
-        // Calculamos el progreso visual (cuántas están marcadas)
         int marcadas = _tareasCompletadas.where((element) => element == true).length;
         double progreso = marcadas / rutina.length;
 
         return ListView(
           padding: const EdgeInsets.all(16.0),
           children: [
-            // --- TARJETA PRINCIPAL CON BARRA DE PROGRESO ---
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
@@ -98,7 +101,6 @@ class _ExerciseTabState extends State<ExerciseTab> {
                   const SizedBox(height: 8),
                   Text(enfoque, style: const TextStyle(color: Colors.white, fontSize: 14)),
                   
-                  // La nueva barra de progreso visual
                   const SizedBox(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -123,13 +125,10 @@ class _ExerciseTabState extends State<ExerciseTab> {
             const Text('Ejercicios de Hoy', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
             
-            // --- NUEVO: LISTA CON CHECKBOX INTERACTIVOS ---
-            // Usamos un bucle for tradicional en lugar de .map para saber el "índice" de cada ejercicio
             for (int i = 0; i < rutina.length; i++)
               Card(
                 margin: const EdgeInsets.only(bottom: 12),
                 elevation: 2,
-                // Si la tarea está completada, ponemos el fondo verdecito claro
                 color: _tareasCompletadas[i] ? Colors.green.shade50 : Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
@@ -146,7 +145,6 @@ class _ExerciseTabState extends State<ExerciseTab> {
                     style: TextStyle(
                       fontWeight: FontWeight.bold, 
                       fontSize: 16,
-                      // Tachamos el texto si ya lo completó
                       decoration: _tareasCompletadas[i] ? TextDecoration.lineThrough : TextDecoration.none,
                       color: _tareasCompletadas[i] ? Colors.grey : Colors.black,
                     )
@@ -157,7 +155,6 @@ class _ExerciseTabState extends State<ExerciseTab> {
                   ),
                   value: _tareasCompletadas[i],
                   onChanged: (bool? newValue) {
-                    // Refrescamos la pantalla cuando marca la casilla
                     setState(() {
                       _tareasCompletadas[i] = newValue!;
                     });
@@ -165,7 +162,6 @@ class _ExerciseTabState extends State<ExerciseTab> {
                 ),
               ),
               
-              // Si completó todos, mostramos un mensaje de felicitaciones
               if (progreso == 1.0)
                 Container(
                   padding: const EdgeInsets.all(16),
