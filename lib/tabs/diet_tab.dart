@@ -12,6 +12,9 @@ class DietTab extends StatefulWidget {
 
 class _DietTabState extends State<DietTab> {
   late Future<Map<String, dynamic>> _dietFuture;
+  
+  // --- NUEVA VARIABLE: Para guardar qué comidas ya se hicieron ---
+  List<bool> _comidasCompletadas = [];
 
   @override
   void initState() {
@@ -38,12 +41,18 @@ class _DietTabState extends State<DietTab> {
     final dietQuery = await FirebaseFirestore.instance.collection('dietas').where('objetivo', isEqualTo: objetivoUsuario).get();
 
     if (dietQuery.docs.isEmpty) {
-      // Usamos una excepción personalizada para manejar este caso específico en el builder.
       throw _DietNotFoundException(objetivoUsuario);
     }
 
-    // Si encontramos la dieta, devolvemos sus datos.
-    return dietQuery.docs.first.data();
+    final dietaData = dietQuery.docs.first.data();
+
+    // 3. Inicializamos las casillas de verificación según la cantidad de comidas
+    List<dynamic> planComidasRaw = dietaData['comidas'] ?? [];
+    if (_comidasCompletadas.isEmpty && planComidasRaw.isNotEmpty) {
+      _comidasCompletadas = List<bool>.filled(planComidasRaw.length, false);
+    }
+
+    return dietaData;
   }
 
   @override
@@ -62,12 +71,10 @@ class _DietTabState extends State<DietTab> {
 
         // Caso 2: Ocurrió un error
         if (snapshot.hasError) {
-          // Si el error es que no se encontró la dieta, mostramos un mensaje amigable.
           if (snapshot.error is _DietNotFoundException) {
             final error = snapshot.error as _DietNotFoundException;
             return _buildDietNotFoundUI(error.objective);
           }
-          // Para cualquier otro error, mostramos un mensaje genérico.
           return Center(child: Text('Error: ${snapshot.error}'));
         }
 
@@ -85,77 +92,139 @@ class _DietTabState extends State<DietTab> {
             };
           }).toList();
 
+          // Cálculos para la barra de progreso
+          int marcadas = _comidasCompletadas.where((element) => element == true).length;
+          double progreso = planComidas.isEmpty ? 0 : marcadas / planComidas.length;
+
           return ListView(
-              padding: const EdgeInsets.all(16.0),
-              children: [
-                // --- TARJETA PRINCIPAL (Datos de Firebase) ---
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2E7D32),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Row(
-                        children: [
-                          Icon(Icons.cloud_done, color: Colors.white70, size: 16),
-                          SizedBox(width: 8),
-                          Text(
-                            'Sincronizado desde la nube',
-                            style: TextStyle(color: Colors.white70, fontSize: 12, fontStyle: FontStyle.italic),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      const Text('Tu Plan Personalizado', style: TextStyle(color: Colors.white, fontSize: 14)),
-                      const SizedBox(height: 8),
-                      Text(tituloDieta, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 12),
-                      Text(descripcion, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                    ],
-                  ),
+            padding: const EdgeInsets.all(16.0),
+            children: [
+              // --- TARJETA PRINCIPAL ---
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Tu Plan Personalizado', style: TextStyle(color: Colors.white, fontSize: 14)),
+                        Row(
+                          children: [
+                            Icon(Icons.cloud_done, color: Colors.white70, size: 14),
+                            SizedBox(width: 4),
+                            Text('Sincronizado', style: TextStyle(color: Colors.white70, fontSize: 10, fontStyle: FontStyle.italic)),
+                          ],
+                        )
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(tituloDieta, style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    Text(descripcion, style: const TextStyle(color: Colors.white, fontSize: 14)),
+                    
+                    const SizedBox(height: 24),
+                    // --- BARRA DE PROGRESO DE COMIDAS ---
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Comidas registradas hoy:', style: TextStyle(color: Colors.white70)),
+                        Text('$marcadas/${planComidas.length}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: progreso,
+                      backgroundColor: Colors.white.withOpacity(0.3),
+                      color: Colors.orangeAccent,
+                      minHeight: 8,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ],
+                ),
+              ),
 
-                const SizedBox(height: 24),
-                const Text('Menú del Día', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 16),
+              const SizedBox(height: 24),
+              const Text('Registro Diario (Menú)', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
 
-                // --- LISTA DE COMIDAS (Desde Firebase) ---
-                if (planComidas.isEmpty)
-                  const Center(child: Text('No hay comidas detalladas en este plan.'))
-                else
-                  ...planComidas.map((item) => Card(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.all(16),
-                          leading: Container(
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: Colors.green.shade50, shape: BoxShape.circle),
-                            child: const Icon(Icons.restaurant_menu, color: Color(0xFF2E7D32)),
-                          ),
-                          title: Text(item['comida']!, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                          subtitle: Padding(
-                            padding: const EdgeInsets.only(top: 8.0),
-                            child: Text(item['desc']!, style: const TextStyle(fontSize: 14, color: Colors.black87)),
+              // --- LISTA DE COMIDAS INTERACTIVA (Checkboxes) ---
+              if (planComidas.isEmpty)
+                const Center(child: Text('No hay comidas detalladas en este plan.'))
+              else
+                for (int i = 0; i < planComidas.length; i++)
+                  Card(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    elevation: 2,
+                    color: _comidasCompletadas[i] ? Colors.green.shade50 : Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: _comidasCompletadas[i] ? Colors.green : Colors.transparent, width: 1)
+                    ),
+                    child: CheckboxListTile(
+                      contentPadding: const EdgeInsets.all(12),
+                      activeColor: const Color(0xFF2E7D32),
+                      secondary: Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(color: _comidasCompletadas[i] ? Colors.green.shade100 : Colors.green.shade50, shape: BoxShape.circle),
+                        child: Icon(Icons.restaurant_menu, color: _comidasCompletadas[i] ? Colors.green : const Color(0xFF2E7D32)),
+                      ),
+                      title: Text(
+                        planComidas[i]['comida']!, 
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold, 
+                          fontSize: 18,
+                          decoration: _comidasCompletadas[i] ? TextDecoration.lineThrough : TextDecoration.none,
+                          color: _comidasCompletadas[i] ? Colors.grey : Colors.black,
+                        )
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(planComidas[i]['desc']!, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+                      ),
+                      value: _comidasCompletadas[i],
+                      onChanged: (bool? newValue) {
+                        setState(() {
+                          _comidasCompletadas[i] = newValue!;
+                        });
+                      },
+                    ),
+                  ),
+
+                // --- MENSAJE DE FELICITACIONES ---
+                if (progreso == 1.0 && planComidas.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    margin: const EdgeInsets.only(top: 16),
+                    decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.thumb_up, color: Colors.orange, size: 32),
+                        SizedBox(width: 12),
+                        Flexible(
+                          child: Text('¡Excelente! Has cumplido con todas tus comidas de hoy.', 
+                            style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold, fontSize: 15)
                           ),
                         ),
-                      ))
-                      
-              ],
-            );
+                      ],
+                    ),
+                  )
+            ],
+          );
         }
 
-        // Caso 4: Estado inesperado (no debería ocurrir)
+        // Caso 4: Estado inesperado
         return const Center(child: Text('Ha ocurrido algo inesperado.'));
       },
     );
   }
 
-  /// Widget que se muestra cuando no se encuentra una dieta para el objetivo del usuario.
   Widget _buildDietNotFoundUI(String objetivoUsuario) {
     return Center(
       child: Padding(
@@ -171,10 +240,7 @@ class _DietTabState extends State<DietTab> {
               style: const TextStyle(fontSize: 16, color: Colors.grey),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Dile al administrador que la agregue en Firebase.',
-              style: TextStyle(fontStyle: FontStyle.italic),
-            ),
+            const Text('Dile al administrador que la agregue en Firebase.', style: TextStyle(fontStyle: FontStyle.italic)),
           ],
         ),
       ),
@@ -182,7 +248,6 @@ class _DietTabState extends State<DietTab> {
   }
 }
 
-/// Excepción personalizada para indicar que no se encontró una dieta.
 class _DietNotFoundException implements Exception {
   final String objective;
   _DietNotFoundException(this.objective);

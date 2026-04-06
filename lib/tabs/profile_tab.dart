@@ -4,8 +4,18 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:healthylife/screens/login_screen.dart';
 import '../../widgets/pulse_loader.dart';
 
-class ProfileTab extends StatelessWidget {
-  const ProfileTab({super.key});
+class ProfileTab extends StatefulWidget {
+  const ProfileTab({Key? key}) : super(key: key);
+
+  @override
+  State<ProfileTab> createState() => _ProfileTabState();
+}
+
+class _ProfileTabState extends State<ProfileTab> {
+  // --- VARIABLES PARA LOS RECORDATORIOS ---
+  bool _recordatorioAgua = true;
+  bool _recordatorioComidas = true;
+  bool _recordatorioEjercicios = false;
 
   Future<void> _editarDatosFisicos(BuildContext context, Map<String, dynamic> userData) async {
     final pesoController = TextEditingController(text: userData['peso'].toString());
@@ -80,6 +90,17 @@ class ProfileTab extends StatelessWidget {
     }
   }
 
+  void _mostrarMensaje(String mensaje) {
+    ScaffoldMessenger.of(context).clearSnackBars();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensaje), 
+        backgroundColor: const Color(0xFF2E7D32),
+        duration: const Duration(seconds: 2),
+      )
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
@@ -90,13 +111,8 @@ class ProfileTab extends StatelessWidget {
       future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
       builder: (context, snapshot) {
         
-        // --- ANIMACIÓN DE CARGA AQUÍ ---
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const PulseLoader(
-            icon: Icons.person_search, 
-            color: Color(0xFF2E7D32),
-            text: 'Cargando tu perfil...',
-          );
+          return const PulseLoader(icon: Icons.person_search, color: Color(0xFF2E7D32), text: 'Cargando tu perfil...');
         }
 
         if (snapshot.hasError || !snapshot.hasData || !snapshot.data!.exists) {
@@ -125,6 +141,7 @@ class ProfileTab extends StatelessWidget {
               ),
               const Divider(height: 48, thickness: 1),
 
+              // --- SECCIÓN: DATOS FÍSICOS ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -155,8 +172,66 @@ class ProfileTab extends StatelessWidget {
                 ),
               ),
 
+              const SizedBox(height: 32),
+
+              // --- NUEVA SECCIÓN: RECORDATORIOS Y NOTIFICACIONES ---
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Recordatorios Diarios', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Configuración de Firebase Cloud Messaging', style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)),
+              ),
+              const SizedBox(height: 12),
+
+              Card(
+                elevation: 2,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                child: Column(
+                  children: [
+                    SwitchListTile(
+                      activeColor: const Color(0xFF2E7D32),
+                      secondary: const Icon(Icons.water_drop, color: Colors.lightBlue),
+                      title: const Text('Beber Agua', style: TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: const Text('Cada 2 horas', style: TextStyle(fontSize: 12)),
+                      value: _recordatorioAgua,
+                      onChanged: (value) {
+                        setState(() => _recordatorioAgua = value);
+                        _mostrarMensaje(value ? 'Recordatorio de agua activado' : 'Recordatorio de agua desactivado');
+                      },
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      activeColor: const Color(0xFF2E7D32),
+                      secondary: const Icon(Icons.restaurant, color: Colors.orange),
+                      title: const Text('Plan de Comidas', style: TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: const Text('Desayuno, almuerzo y cena', style: TextStyle(fontSize: 12)),
+                      value: _recordatorioComidas,
+                      onChanged: (value) {
+                        setState(() => _recordatorioComidas = value);
+                        _mostrarMensaje(value ? 'Notificaciones de comidas activadas' : 'Notificaciones de comidas desactivadas');
+                      },
+                    ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      activeColor: const Color(0xFF2E7D32),
+                      secondary: const Icon(Icons.fitness_center, color: Colors.blueAccent),
+                      title: const Text('Rutina de Ejercicios', style: TextStyle(fontWeight: FontWeight.w500)),
+                      subtitle: const Text('Hora sugerida: 6:00 PM', style: TextStyle(fontSize: 12)),
+                      value: _recordatorioEjercicios,
+                      onChanged: (value) {
+                        setState(() => _recordatorioEjercicios = value);
+                        _mostrarMensaje(value ? 'Alarma de entrenamiento activada' : 'Alarma de entrenamiento desactivada');
+                      },
+                    ),
+                  ],
+                ),
+              ),
+
               const SizedBox(height: 40),
 
+              // --- BOTÓN DE CERRAR SESIÓN ---
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
