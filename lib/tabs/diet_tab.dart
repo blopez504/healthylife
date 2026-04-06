@@ -173,7 +173,7 @@ class _DietTabState extends State<DietTab> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF2E7D32),
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.green.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
+                  boxShadow: [BoxShadow(color: Colors.green.withAlpha(77), blurRadius: 8, offset: const Offset(0, 4))]
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -208,7 +208,7 @@ class _DietTabState extends State<DietTab> {
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: progreso,
-                      backgroundColor: Colors.white.withOpacity(0.3),
+                      backgroundColor: Colors.white.withAlpha(77),
                       color: Colors.orangeAccent,
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),

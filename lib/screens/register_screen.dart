@@ -66,7 +66,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       String mensaje = 'Error al registrar';
       if (e.code == 'weak-password') {
         mensaje = 'La contraseña es muy débil (Mínimo 6 caracteres).';
-      } else if (e.code == 'email-already-in-use') mensaje = 'Este correo ya está registrado.';
+      } else if (e.code == 'email-already-in-use') {
+        mensaje = 'Este correo ya está registrado.';
+      }
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensaje), backgroundColor: Colors.red));

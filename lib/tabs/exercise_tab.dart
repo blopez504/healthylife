@@ -175,7 +175,7 @@ class _ExerciseTabState extends State<ExerciseTab> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1976D2),
                   borderRadius: BorderRadius.circular(16),
-                  boxShadow: [BoxShadow(color: Colors.blue.withOpacity(0.3), blurRadius: 8, offset: const Offset(0, 4))]
+                  boxShadow: [BoxShadow(color: Colors.blue.withAlpha(77), blurRadius: 8, offset: const Offset(0, 4))]
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -215,7 +215,7 @@ class _ExerciseTabState extends State<ExerciseTab> {
                     const SizedBox(height: 8),
                     LinearProgressIndicator(
                       value: progreso,
-                      backgroundColor: Colors.white.withOpacity(0.3),
+                      backgroundColor: Colors.white.withAlpha(77),
                       color: Colors.greenAccent,
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),

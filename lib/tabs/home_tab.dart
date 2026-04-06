@@ -85,7 +85,7 @@ class HomeTab extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(20),
                     gradient: LinearGradient(
-                      colors: [colorImc.withOpacity(0.8), colorImc],
+                      colors: [colorImc.withAlpha(204), colorImc],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -105,7 +105,7 @@ class HomeTab extends StatelessWidget {
                       const SizedBox(height: 16),
                       Container(
                         padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(color: Colors.white.withOpacity(0.2), borderRadius: BorderRadius.circular(12)),
+                        decoration: BoxDecoration(color: Colors.white.withAlpha(51), borderRadius: BorderRadius.circular(12)),
                         child: Text(consejo, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white, fontSize: 14)),
                       )
                     ],
@@ -217,8 +217,6 @@ class _WaterTrackerState extends State<WaterTracker> {
 
   @override
   Widget build(BuildContext context) {
-    double progreso = _vasosActuales / widget.metaVasos;
-
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
