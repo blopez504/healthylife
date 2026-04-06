@@ -5,17 +5,48 @@ import 'package:healthylife/screens/login_screen.dart';
 import '../../widgets/pulse_loader.dart';
 
 class ProfileTab extends StatefulWidget {
-  const ProfileTab({Key? key}) : super(key: key);
+  const ProfileTab({super.key});
 
   @override
   State<ProfileTab> createState() => _ProfileTabState();
 }
 
 class _ProfileTabState extends State<ProfileTab> {
+  late Future<DocumentSnapshot> _profileFuture;
+  final _user = FirebaseAuth.instance.currentUser;
+
   // --- VARIABLES PARA LOS RECORDATORIOS ---
-  bool _recordatorioAgua = true;
-  bool _recordatorioComidas = true;
-  bool _recordatorioEjercicios = false;
+  bool _recordatorioAgua = true; // Valor por defecto
+  bool _recordatorioComidas = true; // Valor por defecto
+  bool _recordatorioEjercicios = false; // Valor por defecto
+
+  @override
+  void initState() {
+    super.initState();
+    _profileFuture = _loadProfileData();
+  }
+
+  Future<DocumentSnapshot> _loadProfileData() async {
+    if (_user == null) {
+      throw Exception("No hay sesión iniciada.");
+    }
+    final userDoc =
+        await FirebaseFirestore.instance.collection('users').doc(_user.uid).get();
+    if (!userDoc.exists) {
+      throw Exception("No se encontraron datos del perfil.");
+    }
+    final data = userDoc.data();
+    // Inicializamos el estado de los switches con los datos de Firebase
+    // Esto se hace antes de que se construya el widget por primera vez.
+    if (data != null && mounted) {
+      setState(() {
+        _recordatorioAgua = data['recordatorioAgua'] ?? true;
+        _recordatorioComidas = data['recordatorioComidas'] ?? true;
+        _recordatorioEjercicios = data['recordatorioEjercicios'] ?? false;
+      });
+    }
+    return userDoc;
+  }
 
   Future<void> _editarDatosFisicos(BuildContext context, Map<String, dynamic> userData) async {
     final pesoController = TextEditingController(text: userData['peso'].toString());
@@ -101,14 +132,29 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  // --- NUEVA FUNCIÓN: Guarda las preferencias en Firebase ---
+  Future<void> _updateUserPreference(String key, bool value) async {
+    if (_user == null) return;
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(_user.uid)
+          .update({key: value});
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) return const Center(child: Text("No hay sesión"));
+    if (_user == null) return const Center(child: Text("No hay sesión"));
 
     return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(user.uid).get(),
+      future: _profileFuture,
       builder: (context, snapshot) {
         
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -181,7 +227,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
               const Align(
                 alignment: Alignment.centerLeft,
-                child: Text('Configuración de Firebase Cloud Messaging', style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)),
+                child: Text('Tus preferencias se guardarán en la nube', style: TextStyle(fontSize: 12, color: Colors.grey, fontStyle: FontStyle.italic)),
               ),
               const SizedBox(height: 12),
 
@@ -191,38 +237,41 @@ class _ProfileTabState extends State<ProfileTab> {
                 child: Column(
                   children: [
                     SwitchListTile(
-                      activeColor: const Color(0xFF2E7D32),
+                      activeThumbColor: const Color(0xFF2E7D32),
                       secondary: const Icon(Icons.water_drop, color: Colors.lightBlue),
                       title: const Text('Beber Agua', style: TextStyle(fontWeight: FontWeight.w500)),
                       subtitle: const Text('Cada 2 horas', style: TextStyle(fontSize: 12)),
                       value: _recordatorioAgua,
                       onChanged: (value) {
-                        setState(() => _recordatorioAgua = value);
-                        _mostrarMensaje(value ? 'Recordatorio de agua activado' : 'Recordatorio de agua desactivado');
+                        setState(() => _recordatorioAgua = value); // Actualiza la UI al instante
+                        _updateUserPreference('recordatorioAgua', value); // Guarda en Firebase
+                        _mostrarMensaje('Preferencia de agua guardada');
                       },
                     ),
                     const Divider(height: 1),
                     SwitchListTile(
-                      activeColor: const Color(0xFF2E7D32),
+                      activeThumbColor: const Color(0xFF2E7D32),
                       secondary: const Icon(Icons.restaurant, color: Colors.orange),
                       title: const Text('Plan de Comidas', style: TextStyle(fontWeight: FontWeight.w500)),
                       subtitle: const Text('Desayuno, almuerzo y cena', style: TextStyle(fontSize: 12)),
                       value: _recordatorioComidas,
                       onChanged: (value) {
                         setState(() => _recordatorioComidas = value);
-                        _mostrarMensaje(value ? 'Notificaciones de comidas activadas' : 'Notificaciones de comidas desactivadas');
+                        _updateUserPreference('recordatorioComidas', value);
+                        _mostrarMensaje('Preferencia de comidas guardada');
                       },
                     ),
                     const Divider(height: 1),
                     SwitchListTile(
-                      activeColor: const Color(0xFF2E7D32),
+                      activeThumbColor: const Color(0xFF2E7D32),
                       secondary: const Icon(Icons.fitness_center, color: Colors.blueAccent),
                       title: const Text('Rutina de Ejercicios', style: TextStyle(fontWeight: FontWeight.w500)),
                       subtitle: const Text('Hora sugerida: 6:00 PM', style: TextStyle(fontSize: 12)),
                       value: _recordatorioEjercicios,
                       onChanged: (value) {
                         setState(() => _recordatorioEjercicios = value);
-                        _mostrarMensaje(value ? 'Alarma de entrenamiento activada' : 'Alarma de entrenamiento desactivada');
+                        _updateUserPreference('recordatorioEjercicios', value);
+                        _mostrarMensaje('Preferencia de ejercicio guardada');
                       },
                     ),
                   ],
@@ -234,7 +283,7 @@ class _ProfileTabState extends State<ProfileTab> {
               // --- BOTÓN DE CERRAR SESIÓN ---
               SizedBox(
                 width: double.infinity,
-                child: OutlinedButton.icon(
+                child: OutlinedButton.icon( // ignore: prefer_const_constructors
                   onPressed: () => _cerrarSesion(context),
                   icon: const Icon(Icons.logout, color: Colors.red),
                   label: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red, fontSize: 16, fontWeight: FontWeight.bold)),

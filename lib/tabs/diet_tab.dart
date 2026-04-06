@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // Necesario para formatear la fecha
 import '../../widgets/pulse_loader.dart';
 
 class DietTab extends StatefulWidget {
@@ -13,13 +14,18 @@ class DietTab extends StatefulWidget {
 class _DietTabState extends State<DietTab> {
   late Future<Map<String, dynamic>> _dietFuture;
   
-  // --- NUEVA VARIABLE: Para guardar qué comidas ya se hicieron ---
-  List<bool> _comidasCompletadas = [];
+  List<bool> _comidasCompletadas = []; // Estado local de los checkboxes
 
   @override
   void initState() {
     super.initState();
     _dietFuture = _loadDietData();
+  }
+
+  /// Devuelve la fecha actual en formato 'YYYY-MM-DD' para usarla como ID de documento.
+  String _getTodayDateId() {
+    final now = DateTime.now();
+    return DateFormat('yyyy-MM-dd').format(now);
   }
 
   /// Carga los datos del usuario y su dieta correspondiente en una sola operación.
@@ -29,7 +35,7 @@ class _DietTabState extends State<DietTab> {
       throw Exception('No hay sesión iniciada.');
     }
 
-    // 1. Buscamos el objetivo del usuario
+    // Paso 1: Buscamos el objetivo del usuario
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     if (!userDoc.exists) {
       throw Exception('Error al cargar datos del usuario.');
@@ -37,7 +43,7 @@ class _DietTabState extends State<DietTab> {
     final userData = userDoc.data() ?? {};
     final String objetivoUsuario = userData['objetivo'] ?? 'Mantenerse';
 
-    // 2. Buscamos la dieta que coincida con el objetivo
+    // Paso 2: Buscamos la dieta que coincida con el objetivo
     final dietQuery = await FirebaseFirestore.instance.collection('dietas').where('objetivo', isEqualTo: objetivoUsuario).get();
 
     if (dietQuery.docs.isEmpty) {
@@ -46,13 +52,70 @@ class _DietTabState extends State<DietTab> {
 
     final dietaData = dietQuery.docs.first.data();
 
-    // 3. Inicializamos las casillas de verificación según la cantidad de comidas
+    // Paso 3: Inicializamos las casillas de verificación
     List<dynamic> planComidasRaw = dietaData['comidas'] ?? [];
-    if (_comidasCompletadas.isEmpty && planComidasRaw.isNotEmpty) {
-      _comidasCompletadas = List<bool>.filled(planComidasRaw.length, false);
+    int totalComidas = planComidasRaw.length;
+
+    // Paso 4: Cargamos el progreso guardado para el día de hoy
+    final todayId = _getTodayDateId();
+    final progressDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('progreso_diario')
+        .doc(todayId)
+        .get();
+
+    List<bool> initialProgress = List<bool>.filled(totalComidas, false);
+    if (progressDoc.exists && progressDoc.data()!.containsKey('comidasCompletadas')) {
+      List<dynamic> savedProgress = progressDoc.data()!['comidasCompletadas'];
+      // Aseguramos que la lista de progreso tenga el mismo tamaño que la lista de comidas
+      for (int i = 0; i < totalComidas && i < savedProgress.length; i++) {
+        initialProgress[i] = savedProgress[i] as bool;
+      }
     }
 
+    // Usamos 'WidgetsBinding.instance.addPostFrameCallback' para asegurar que el widget esté construido
+    // antes de llamar a setState. Esto evita errores comunes en Flutter.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _comidasCompletadas = initialProgress;
+        });
+      }
+    });
+
     return dietaData;
+  }
+
+  // --- NUEVA FUNCIÓN: Guarda el progreso en Firebase ---
+  Future<void> _updateMealProgress(int index, bool isCompleted) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Actualiza el estado local inmediatamente para que la UI responda al instante
+    setState(() {
+      _comidasCompletadas[index] = isCompleted;
+    });
+
+    // Guarda la lista completa en Firebase
+    final todayId = _getTodayDateId();
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .collection('progreso_diario')
+          .doc(todayId)
+          .set({
+            'comidasCompletadas': _comidasCompletadas,
+            'lastUpdate': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)); // 'merge: true' es crucial para no sobreescribir el progreso de ejercicios
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al guardar progreso: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
   }
 
   @override
@@ -91,6 +154,11 @@ class _DietTabState extends State<DietTab> {
               "desc": item["desc"]?.toString() ?? "Descripción no disponible"
             };
           }).toList();
+
+          // Si _comidasCompletadas está vacío (primera carga), lo inicializamos
+          if (_comidasCompletadas.isEmpty && planComidas.isNotEmpty) {
+            _comidasCompletadas = List<bool>.filled(planComidas.length, false);
+          }
 
           // Cálculos para la barra de progreso
           int marcadas = _comidasCompletadas.where((element) => element == true).length;
@@ -189,9 +257,7 @@ class _DietTabState extends State<DietTab> {
                       ),
                       value: _comidasCompletadas[i],
                       onChanged: (bool? newValue) {
-                        setState(() {
-                          _comidasCompletadas[i] = newValue!;
-                        });
+                        _updateMealProgress(i, newValue ?? false);
                       },
                     ),
                   ),

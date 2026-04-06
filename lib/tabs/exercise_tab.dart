@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart'; // Necesario para formatear la fecha
 import '../../widgets/pulse_loader.dart';
 
 class ExerciseTab extends StatefulWidget {
@@ -12,13 +13,19 @@ class ExerciseTab extends StatefulWidget {
 
 class _ExerciseTabState extends State<ExerciseTab> {
   late Future<Map<String, dynamic>> _routineFuture;
-  List<bool> _tareasCompletadas = [];
+  List<bool> _ejerciciosCompletados = []; // Estado local de los checkboxes
   String _nivelActual = "";
 
   @override
   void initState() {
     super.initState();
     _routineFuture = _loadRoutineData();
+  }
+
+  /// Devuelve la fecha actual en formato 'YYYY-MM-DD' para usarla como ID de documento.
+  String _getTodayDateId() {
+    final now = DateTime.now();
+    return DateFormat('yyyy-MM-dd').format(now);
   }
 
   /// Carga los datos del usuario y su rutina correspondiente en una sola operación.
@@ -28,7 +35,7 @@ class _ExerciseTabState extends State<ExerciseTab> {
       throw Exception('No hay sesión iniciada.');
     }
 
-    // 1. Buscamos el objetivo y nivel del usuario
+    // Paso 1: Buscamos el objetivo y nivel del usuario
     final userDoc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
     if (!userDoc.exists) {
       throw Exception('Error al cargar datos del usuario.');
@@ -39,7 +46,7 @@ class _ExerciseTabState extends State<ExerciseTab> {
     
     _nivelActual = nivelUsuario; // Guardamos el nivel para mostrarlo en la interfaz
 
-    // 2. Buscamos la rutina que coincida con el objetivo AND el nivel
+    // Paso 2: Buscamos la rutina que coincida con el objetivo AND el nivel
     final routineQuery = await FirebaseFirestore.instance.collection('rutinas')
         .where('objetivo', isEqualTo: objetivoUsuario)
         .where('nivel', isEqualTo: nivelUsuario)
@@ -49,16 +56,66 @@ class _ExerciseTabState extends State<ExerciseTab> {
       throw _RoutineNotFoundException(objetivoUsuario, nivelUsuario);
     }
 
-    // 3. Extraemos los datos
+    // Paso 3: Extraemos los datos
     final routineData = routineQuery.docs.first.data();
     
-    // 4. Inicializamos las casillas de verificación dinámicamente según la cantidad de ejercicios en Firebase
+    // Paso 4: Inicializamos las casillas de verificación
     List<dynamic> ejerciciosRaw = routineData['ejercicios'] ?? [];
-    if (_tareasCompletadas.isEmpty && ejerciciosRaw.isNotEmpty) {
-      _tareasCompletadas = List<bool>.filled(ejerciciosRaw.length, false);
+    int totalEjercicios = ejerciciosRaw.length;
+
+    // Paso 5: Cargamos el progreso guardado para el día de hoy
+    final todayId = _getTodayDateId();
+    final progressDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(user.uid)
+        .collection('progreso_diario')
+        .doc(todayId)
+        .get();
+
+    List<bool> initialProgress = List<bool>.filled(totalEjercicios, false);
+    if (progressDoc.exists && progressDoc.data()!.containsKey('ejerciciosCompletados')) {
+      List<dynamic> savedProgress = progressDoc.data()!['ejerciciosCompletados'];
+      // Aseguramos que la lista de progreso tenga el mismo tamaño que la lista de ejercicios
+      for (int i = 0; i < totalEjercicios && i < savedProgress.length; i++) {
+        initialProgress[i] = savedProgress[i] as bool;
+      }
     }
 
+    // Usamos 'WidgetsBinding.instance.addPostFrameCallback' para asegurar que el widget esté construido
+    // antes de llamar a setState. Esto evita errores comunes en Flutter.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _ejerciciosCompletados = initialProgress;
+        });
+      }
+    });
+
     return routineData;
+  }
+
+  // --- NUEVA FUNCIÓN: Guarda el progreso en Firebase ---
+  Future<void> _updateExerciseProgress(int index, bool isCompleted) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    // Actualiza el estado local inmediatamente para que la UI responda al instante
+    setState(() {
+      _ejerciciosCompletados[index] = isCompleted;
+    });
+
+    // Guarda la lista completa en Firebase
+    final todayId = _getTodayDateId();
+    try {
+      await FirebaseFirestore.instance.collection('users').doc(user.uid).collection('progreso_diario').doc(todayId).set({
+        'ejerciciosCompletados': _ejerciciosCompletados,
+        'lastUpdate': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true)); // 'merge: true' es crucial para no sobreescribir el progreso de comidas
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al guardar progreso: $e'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   @override
@@ -100,8 +157,13 @@ class _ExerciseTabState extends State<ExerciseTab> {
             };
           }).toList();
 
+          // Si _ejerciciosCompletados está vacío (primera carga), lo inicializamos
+          if (_ejerciciosCompletados.isEmpty && rutina.isNotEmpty) {
+            _ejerciciosCompletados = List<bool>.filled(rutina.length, false);
+          }
+
           // Cálculos para la barra de progreso
-          int marcadas = _tareasCompletadas.where((element) => element == true).length;
+          int marcadas = _ejerciciosCompletados.where((element) => element == true).length;
           double progreso = rutina.isEmpty ? 0 : marcadas / rutina.length;
 
           return ListView(
@@ -174,10 +236,10 @@ class _ExerciseTabState extends State<ExerciseTab> {
                   Card(
                     margin: const EdgeInsets.only(bottom: 12),
                     elevation: 2,
-                    color: _tareasCompletadas[i] ? Colors.green.shade50 : Colors.white,
+                    color: _ejerciciosCompletados[i] ? Colors.green.shade50 : Colors.white,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: _tareasCompletadas[i] ? Colors.green : Colors.transparent, width: 1)
+                      side: BorderSide(color: _ejerciciosCompletados[i] ? Colors.green : Colors.transparent, width: 1)
                     ),
                     child: CheckboxListTile(
                       contentPadding: const EdgeInsets.all(12),
@@ -187,19 +249,17 @@ class _ExerciseTabState extends State<ExerciseTab> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold, 
                           fontSize: 16,
-                          decoration: _tareasCompletadas[i] ? TextDecoration.lineThrough : TextDecoration.none,
-                          color: _tareasCompletadas[i] ? Colors.grey : Colors.black,
+                          decoration: _ejerciciosCompletados[i] ? TextDecoration.lineThrough : TextDecoration.none,
+                          color: _ejerciciosCompletados[i] ? Colors.grey : Colors.black,
                         )
                       ),
                       subtitle: Padding(
                         padding: const EdgeInsets.only(top: 6.0),
                         child: Text(rutina[i]['series']!, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
                       ),
-                      value: _tareasCompletadas[i],
+                      value: _ejerciciosCompletados[i],
                       onChanged: (bool? newValue) {
-                        setState(() {
-                          _tareasCompletadas[i] = newValue!;
-                        });
+                        _updateExerciseProgress(i, newValue ?? false);
                       },
                     ),
                   ),
